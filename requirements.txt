@@ -11,6 +11,8 @@ seaborn
 
 # Dashboard & UI
 streamlit
+plotly
+joblib
 
 # Development Tools (Optional for VS Code)
 ipykernel
