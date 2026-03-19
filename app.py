@@ -1,166 +1,103 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import numpy as np
-import plotly.express as px
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
 
-# --- 1. PAGE CONFIGURATION ---
-# Harus diletakkan paling atas sebelum kode UI lainnya
-st.set_page_config(page_title="Smart E-Commerce AI", layout="wide", page_icon="📈")
+# 1. Konfigurasi Halaman
+st.set_page_config(page_title="E-Commerce Analytics", layout="wide")
 
-# --- 2. LOAD DATA (Agar 'df' terdefinisi untuk semua halaman) ---
-@st.cache_data
-def load_initial_data():
-    np.random.seed(42)
-    data = {
-        'order_date': pd.date_range(start='2024-01-01', periods=100, freq='D'),
-        'sales': np.random.randint(100, 1000, 100),
-        'profit': np.random.randint(-100, 500, 100),
-        'discount': np.random.uniform(0, 0.3, 100),
-        'region': np.random.choice(['Marmara', 'Ege', 'Akdeniz', 'Central Anatolia'], 100),
-        'product_name': np.random.choice(['Laptop', 'Mouse', 'Keyboard', 'Monitor'], 100)
-    }
-    return pd.DataFrame(data)
+# Styling CSS agar mirip dashboard profesional
+st.markdown("""
+    <style>
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    </style>
+    """, unsafe_allow_index=True)
 
-df = load_initial_data()
-
-# --- 3. LOAD MODELS & ASSETS ---
+# 2. Fungsi Load Data & Model
 @st.cache_resource
 def load_assets():
-    # Mengarah ke folder 'Notebooks/' sesuai struktur foldermu
-    risk_model = joblib.load('Notebooks/risk_model.pkl')
-    forecast_model = joblib.load('Notebooks/forecast_model.pkl')
-    le_region = joblib.load('Notebooks/le_region.pkl')
-    le_product = joblib.load('Notebooks/le_product.pkl')
-    return risk_model, forecast_model, le_region, le_product
-
-# Proteksi jika file tidak ditemukan
-try:
-    risk_model, forecast_model, le_region, le_product = load_assets()
-except FileNotFoundError:
-    st.error("⚠️ File .pkl tidak ditemukan di folder 'Notebooks'. Pastikan file sudah dipindah ke sana!")
-    st.stop()
-
-# --- 4. SIDEBAR NAVIGATION ---
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", [
-    "Dashboard Overview", 
-    "Risk Predictor", 
-    "Market Analysis", 
-    "Revenue Forecast"
-])
-
-# --- 5. PAGE LOGIC ---
-
-# PAGE 1: DASHBOARD OVERVIEW
-if page == "Dashboard Overview":
-    st.title("🚀 Smart E-Commerce Analytics")
-    st.markdown("""
-    Welcome, **Bilal**! This AI-powered system helps you detect financial risks 
-    and forecast future sales based on your transaction data.
-    """)
+    # Nama file harus sesuai dengan yang ada di foldermu
+    csv_file = 'ecommerce_clean.csv'
+    model_file = 'model_trending.pkl'
+    le_file = 'label_encoder.pkl'
     
+    if not os.path.exists(csv_file):
+        st.error(f"File '{csv_file}' tidak ditemukan! Pastikan sudah dipindah ke folder utama.")
+        return None, None, None
+
+    df = pd.read_csv(csv_file)
+    # Menyeragamkan nama kolom (menghapus spasi dan jadi huruf kecil)
+    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_').str.replace('-', '_')
+    
+    model = joblib.load(model_file)
+    le = joblib.load(le_file)
+    return df, model, le
+
+# Load data
+df, model, le = load_assets()
+
+if df is not None:
+    # 3. SIDEBAR - INPUT DATA
+    st.sidebar.header("🔍 Input Product Details")
+    with st.sidebar.form("prediction_form"):
+        # Dropdown mengambil data unik dari kolom category asli
+        cat_input = st.selectbox("Category", df['category'].unique())
+        sub_cat_input = st.selectbox("Sub-Category", df['sub_category'].unique())
+        
+        u_price = st.number_input("Unit Price ($)", min_value=0.0, value=100.0)
+        qty = st.number_input("Quantity", min_value=1, value=1)
+        disc = st.slider("Discount", 0.0, 1.0, 0.1)
+        
+        # Kalkulasi otomatis untuk Sales & Profit
+        calc_sales = u_price * qty * (1 - disc)
+        calc_profit = calc_sales * 0.1  # Asumsi margin profit 10%
+        
+        predict_btn = st.form_submit_button("Predict Trend")
+
+    # 4. MAIN PANEL - METRICS
+    st.title("🛍️ E-Commerce Sales & Trend Metrics")
+    st.markdown("---")
+
     col1, col2, col3 = st.columns(3)
-    col1.metric("Model Status", "Active", "Online")
-    col2.metric("Accuracy", "92.5%", "+2.1%")
-    col3.metric("System Load", "Normal", "0.2s")
+    col1.metric("Total Records", f"{len(df):,}")
     
-    st.info("Select a tool from the sidebar to get started.")
-
-# PAGE 2: RISK PREDICTOR
-elif page == "Risk Predictor":
-    st.title("🛡️ Real-Time Risk Analysis")
-    st.write("Input transaction details to check for financial risk.")
-
-    with st.form("risk_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            sales = st.number_input("Total Sales ($)", min_value=0.0)
-            quantity = st.number_input("Quantity Sold", min_value=1)
-            discount = st.slider("Discount Applied (%)", 0, 100, 10) / 100
+    # Cek jika kolom is_trending ada
+    if 'is_trending' in df.columns:
+        col2.metric("Trending Items", f"{df['is_trending'].sum():,}")
+    else:
+        col2.metric("Trending Items", "N/A")
         
-        with col2:
-            region = st.selectbox("Region", le_region.classes_)
-            product = st.selectbox("Product Name", le_product.classes_)
-        
-        submit = st.form_submit_button("Analyze Transaction")
+    col3.metric("Avg Profit", f"${df['profit'].mean():.2f}")
 
-    if submit:
-        region_n = le_region.transform([region])[0]
-        product_n = le_product.transform([product])[0]
-        input_data = np.array([[sales, quantity, discount, region_n, product_n]])
-        prediction = risk_model.predict(input_data)
-        
-        st.subheader("Analysis Result:")
-        if prediction[0] == 1:
-            st.error("⚠️ HIGH RISK DETECTED: This transaction is likely a loss or low-margin.")
-        else:
-            st.success("✅ SAFE: This transaction meets profit efficiency standards.")
-
-# PAGE 3: REVENUE FORECAST
-elif page == "Revenue Forecast":
-    st.title("📈 Revenue Forecasting")
-    st.write("Predicting future sales based on historical trends.")
-
-    future_months = np.array([[6], [7], [8]])
-    predictions = forecast_model.predict(future_months)
-    
-    forecast_data = pd.DataFrame({
-        'Month': ['Month 6', 'Month 7', 'Month 8'],
-        'Predicted Sales': predictions
-    })
-
-    fig = px.line(forecast_data, x='Month', y='Predicted Sales', title='Future Sales Projection', markers=True)
-    st.plotly_chart(fig, use_container_width=True)
-    st.write("The AI predicts a steady growth based on current market behavior.")
-
-# PAGE 4: MARKET ANALYSIS (With Analyze Button)
-elif page == "Market Analysis":
-    st.title("📊 Market Insights & Trends")
-    st.markdown("Analyze product performance over time and across different regions.")
-
-    # Menggunakan st.form agar ada tombol "Analyze"
-    with st.form("market_analysis_form"):
-        st.subheader("📅 Select Analysis Period")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            start_date = st.date_input("Start Date", value=pd.to_datetime("2024-01-01"))
-        with col2:
-            end_date = st.date_input("End Date", value=pd.to_datetime("2024-12-31"))
-        
-        # Tombol "Play" / Analisis
-        submit_button = st.form_submit_button(label='🚀 Run Market Analysis')
-
-    # Logika Analisis hanya berjalan JIKA tombol diklik
-    if submit_button:
-        st.divider()
-        
-        # Filtering data
-        mask = (df['order_date'] >= pd.to_datetime(start_date)) & (df['order_date'] <= pd.to_datetime(end_date))
-        df_period = df.loc[mask]
-
-        if not df_period.empty:
-            # 1. TRENDING PRODUCTS
-            st.subheader(f"🔥 Top Products ({start_date} to {end_date})")
-            trending = df_period.groupby('product_name')['sales'].sum().sort_values(ascending=False).reset_index()
+    # 5. LOGIKA PREDIKSI
+    if predict_btn:
+        try:
+            # Transformasi kategori ke angka
+            cat_n = le.transform([cat_input])[0]
             
-            fig_trend = px.bar(trending, x='sales', y='product_name', orientation='h',
-                               color='sales', color_continuous_scale='Magma',
-                               labels={'sales': 'Total Sales ($)', 'product_name': 'Product'})
-            st.plotly_chart(fig_trend, use_container_width=True)
+            # Buat DataFrame untuk input model (Sesuaikan urutan kolom X saat training)
+            # Urutan: category_n, sub_cat_n, quantity, unit_price, discount, sales, profit
+            X_input = pd.DataFrame([[cat_n, 0, qty, u_price, disc, calc_sales, calc_profit]], 
+                                   columns=['category_n', 'sub_cat_n', 'quantity', 'unit_price', 'discount', 'sales', 'profit'])
             
-            st.divider()
-
-            # 2. REGIONAL LEADERBOARD
-            st.subheader("📍 Regional Sales Leaderboard")
-            region_sales = df_period.groupby(['region', 'product_name'])['sales'].sum().reset_index()
-            top_per_region = region_sales.sort_values(['region', 'sales'], ascending=[True, False]).drop_duplicates('region')
-
-            fig_region = px.bar(top_per_region, x='region', y='sales', color='product_name',
-                                text='product_name', title="Market Leader per Region")
-            st.plotly_chart(fig_region, use_container_width=True)
+            res = model.predict(X_input)
             
-            st.success("Analysis Complete! Data successfully filtered.")
-        else:
-            st.warning("No transactions found for this period. Please try a different date range.")
+            st.subheader("🎯 Prediction Result")
+            if res[0] == 1:
+                st.success(f"🔥 **TRENDING!** Produk di kategori {cat_input} ini diprediksi akan populer.")
+            else:
+                st.info(f"📊 **NORMAL.** Produk ini diprediksi memiliki performa penjualan biasa.")
+                
+        except Exception as e:
+            st.error(f"Gagal melakukan prediksi: {e}")
+
+    # 6. VISUALISASI
+    st.markdown("---")
+    st.subheader("📈 Sales vs Profit Analysis")
+    fig, ax = plt.subplots(figsize=(10, 4))
+    sns.scatterplot(data=df, x='sales', y='profit', hue='category', alpha=0.7, ax=ax)
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
