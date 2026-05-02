@@ -11,6 +11,7 @@ seaborn
 
 # Dashboard & UI
 streamlit
+streamlit-option-menu
 plotly
 joblib
 
