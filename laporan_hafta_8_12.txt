@@ -1,0 +1,167 @@
+8
+HAFTA 8 - BÖLGESEL SATIŞ SEGMENTASYONU VE K-MEANS CLUSTERING
+📌 Aktivite Tanımı
+E-ticaret platformundaki şehirlerin satış ve kâr performanslarına göre gruplandırılması ve segmente edilmesi amacıyla denetimsiz öğrenme (Unsupervised Learning) tabanlı K-Means Kümeleme modeli eğitilmiştir. Bu segmentasyon, pazarlama bütçesinin ve lojistik kaynaklarının doğru şehirlere optimize edilmesine yardımcı olur.
+
+🛠️ Teknik Detaylar ve Uygulama
+📁 Veri Hazırlığı: Şehir düzeyinde veriler agregasyon işlemine tabi tutulmuştur. Her şehir için 'Total_Sales' (Toplam Satış), 'Total_Profit' (Toplam Kâr) ve 'Avg_Margin' (Ortalama Kâr Marjı) metrikleri hesaplanmıştır.
+🔢 Özellikler: Segmentasyon için 3 özellik seçilmiştir: Total_Sales, Total_Profit, Avg_Margin.
+⚙️ Standardizasyon: Değişkenlerin ölçek farklılıklarını ortadan kaldırmak için StandardScaler uygulanmıştır.
+📐 Kümeleme Sayısı (K) Belirleme: Elbow Method (Dirsek Yöntemi) kullanılarak K = 1 ila 10 arasında denemeler yapılmış ve optimal küme sayısı K=3 olarak belirlenmiştir.
+
+📊 Değerlendirme Metrikleri ve Sonuçlar
+Optimal K=3 seçilerek K-Means modeli eğitilmiş ve şehirler 3 farklı kategoriye ayrılmıştır:
+- Tier 1 - High Profit & Sales (Yüksek Kâr & Satış - 10 Şehir) -> Şirketin "Altın" pazarlarını temsil eden lider şehir grubu.
+- Tier 2 - Average Growth (Ortalama Büyüme - 4 Şehir) -> Dengeli büyüme potansiyeline sahip şehir grubu.
+- Tier 3 - Low Performers (Düşük Performans - 6 Şehir) -> Kârlılığın ve satışların düşük olduğu, operasyonel olarak incelenmesi gereken riskli şehirler.
+
+⚠️ Sorun: Farklı ölçeklerdeki finansal verilerin (Örn: Satışlar binlerce birimken marj yüzdelik değerdedir) modeli domine etmesi.
+✅ Çözüm: StandardScaler ile tüm özellikler ortalama 0 ve standart sapma 1 olacak şekilde ölçeklendirilmiştir.
+💾 Çıktı: 'scaler_kmeans.pkl', 'model_kmeans_region.pkl' ve segment etiketlerini içeren 'city_clusters.csv' dosyası oluşturuldu. Bu veriler Streamlit dashboard'unda coğrafi performans haritalandırması için kullanılabilir.
+
+---
+
+9
+HAFTA 9 - XGBOOST İLE GELİR TAHMİNİ (REVENUE PREDICTION)
+📌 Aktivite Tanımı
+İşletmenin gelecek dönem finansal planlamasına destek olmak amacıyla, ürün ve işlem özelliklerine bağlı olarak toplam satış tutarını (Revenue/Sales) tahmin eden yüksek performanslı bir regresyon modeli eğitilmiştir.
+
+🛠️ Teknik Detaylar ve Uygulama
+📁 Veri Hazırlığı: Zaman tabanlı ('day_of_week', 'quarter', 'day_of_month', 'is_weekend') ve fiyat tabanlı ('effective_price', 'total_base_price', 'discount_amount', 'profit_margin') toplam 8 yeni öznitelik türetilmiştir. Kategorik veriler LabelEncoder ile sayısallaştırılmıştır.
+🔢 Özellik Sayısı: Toplam 17 özellik (özgün ve türetilmiş).
+✂️ Split Oranı: %70 Eğitim (Train), %15 Doğrulama (Validation), %15 Test (Test)
+🤖 Model: XGBoost (XGBRegressor)
+⚙️ Hiperparametre Optimizasyonu: Manuel Grid Search gerçekleştirilmiştir.
+
+📊 Değerlendirme Metrikleri ve Sonuçlar
+Grid Search sonucunda en iyi konfigürasyon belirlenmiştir:
+- Parametreler: n_estimators = 500, max_depth = 8, learning_rate = 0.02, subsample = 0.7, colsample_bytree = 0.8
+- Model Performans Karşılaştırması (Test Seti):
+  Metrik          | Baseline Model   | Tuned (Tuned Model)
+  ----------------|------------------|---------------------
+  R²              | 0.9999           | 0.9999 (Varyans açıklama %99.99)
+  MAE             | 589 Rp           | 500 Rp (Hata %15 azaldı)
+  RMSE            | 917 Rp           | 821 Rp
+  MAPE            | 1.12%            | 1.01%
+  ----------------|------------------|---------------------
+- 5-Fold Cross Validation Sonuçları: R² = 0.9999 ± 0.0000 | MAE = 559 Rp ± 20
+- En Önemli 5 Öznitelik (Feature Importance):
+  1. total_base_price (0.7408)
+  2. is_trending (0.1095)
+  3. quantity (0.0836)
+  4. effective_price (0.0497)
+  5. discount (0.0130)
+
+⚠️ Sorun: Aşırı öğrenme (Overfitting) riski ve uç değerlerin tahmin kalitesine etkisi.
+✅ Çözüm: Erken durdurma (Early Stopping) mekanizması eklenmiş, L1 (reg_alpha=0.1) ve L2 (reg_lambda=1.0) düzenlileştirmeleri (regularization) kullanılmıştır.
+💾 Çıktı: Eğitilen en iyi model Streamlit dashboard'unun Gelir Tahmin bölümüne entegre edilecek şekilde yapılandırılmıştır.
+
+---
+
+10
+HAFTA 10 - LOJİSTİK REGRESYON VE RASTGELE ORMAN KARŞILAŞTIRMALI RİSK ANALİZİ
+📌 Aktivite Tanımı
+Finansal kayıpları önlemek adına e-ticaret işlemlerinin risk durumunun (Is_risk) sınıflandırılması amacıyla doğrusal bir model olan Lojistik Regresyon eğitilmiş ve karmaşık Random Forest modeli ile karşılaştırılmıştır.
+
+🛠️ Teknik Detaylar ve Uygulama
+📁 Veri Hazırlığı & Sınıflandırma Mantığı: Kâr marjının (Profit / Sales) %15 alt kuantili (quantile 0.15) altındaki işlemler "Riski" (1), diğerleri ise "Aman" (0) olarak etiketlenmiştir. Eşik marj değeri %8.02 olarak bulunmuştur.
+⚖️ Veri Dağılımı: 4.250 Güvenli (0), 750 Riskli (1). Sınıf dengesizliği (Class Imbalance) mevcuttur.
+🔢 Özellikler: Region, Category, Discount, Quantity, Unit Price. Kategorik özellikler One-Hot Encoding ile dönüştürülmüştür.
+✂️ Split Oranı: %80 Eğitim - %20 Test (Stratified Split ile dengeli dağılım sağlanmıştır).
+🤖 Modeller: Logistic Regression (class_weight='balanced') vs. Random Forest Classifier.
+
+📊 Değerlendirme Metrikleri ve Sonuçlar
+Modellerin test seti üzerindeki performans sonuçları:
+- Akurasi Karşılaştırması:
+  - Lojistik Regresyon Akurasi: 44.10%
+  - Random Forest Akurasi     : 82.10%
+- Lojistik Regresyon Detaylı Raporu:
+  - Sınıf 0 (Aman)   | Precision: 0.85 | Recall: 0.42 | F1-Score: 0.56
+  - Sınıf 1 (Riski)  | Precision: 0.15 | Recall: 0.58 | F1-Score: 0.24
+- Risk Tetikleyici Faktörler (Trigger Factors): Lojistik regresyon katsayıları analiz edildiğinde, yüksek indirim oranları (Discount) ve belirli ürün kategorilerinin risk olasılığını doğrudan artıran temel tetikleyiciler olduğu görülmüştür.
+
+⚠️ Sorun: Sınıf dengesizliği nedeniyle Lojistik Regresyon'un sadece çoğunluk sınıfı (güvenli) tahmin etmeye eğilimli olması.
+✅ Çözüm: `class_weight='balanced'` parametresi eklenerek azınlık sınıfı olan riskli işlemlere daha fazla ağırlık verilmiş ve risk yakalama oranı (Recall) %58'e yükseltilmiştir.
+💾 Çıktı: 'model_risiko_logistic.pkl', 'model_risiko_rf_compare.pkl' ve 'risk_features_logistic.pkl' dosyaları kaydedilmiştir.
+
+---
+
+11
+HAFTA 11 - CATBOOST İLE BÖLGE VE MÜŞTERİ TERCİHLERİ ANALİZİ
+📌 Aktivite Tanımı
+Müşterilerin coğrafi konumlarına (Region, City) ve ödeme yöntemlerine (Payment_mode) göre en çok hangi ürün kategorilerine (Category) yöneldiğini tespit etmek amacıyla çok sınıflı (Multi-Class) bir müşteri tercih modeli eğitilmiştir.
+
+🛠️ Teknik Detaylar ve Uygulama
+📁 Model Seçimi: Kategorik verileri (One-Hot yapmadan) doğrudan işleyebilen CatBoost Classifier algoritması seçilmiştir.
+🔢 Özellikler: 'Region' (kategorik), 'City' (kategorik), 'Payment_mode' (kategorik), 'Discount' (nümerik), 'Quantity' (nümerik).
+🎯 Hedef Değişken: 'Category' (10 farklı ürün kategorisi: Beauty, Books, Clothing, Electronics, Furniture, Groceries, Home Decor, Kitchen, Sports, Toys).
+✂️ Split Oranı: %80 Eğitim - %20 Test (Stratify).
+⚙️ Eğitim Detayları: iterations=500, learning_rate=0.1, depth=6, loss_function='MultiClass', early_stopping_rounds=50.
+
+📊 Değerlendirme Metrikleri ve Sonuçlar
+- Pelatihan Süreci: Model eğitim sırasında ezberleme (overfitting) eğilimi göstermiş ve 12. iterasyonda erken durdurma (early stopping) tetiklenmiştir (bestTest = 12.7% doğruluk).
+- Test Seti Sonuçları:
+  - Model Akurasi Skorı: 13.00% (Çok düşük)
+  - Sınıf bazlı F1 skorları: Furniture (0.20), Home Decor (0.15), Clothing (0.14), Sports (0.14), Kitchen (0.13), Books (0.08), Toys (0.02) seviyelerinde kalırken, Beauty, Electronics ve Groceries kategorilerinde model sıfır tahmin başarısı göstermiştir.
+- Çıkarım: Müşterilerin satın alacağı ürün kategorisi, yalnızca bölge ve ödeme yöntemi gibi demografik/yüzeysel verilerle yüksek doğrulukla açıklanamamaktadır. Alışveriş sepeti analizi ve geçmiş müşteri davranış verilerine ihtiyaç duyulmaktadır.
+
+⚠️ Sorun: Modelin hızlıca aşırı öğrenmesi ve veri setindeki kategorilerin rastgele dağılmasından ötürü düşük tahmin gücü.
+✅ Çözüm: `early_stopping_rounds=50` eklenerek modelin test kümesindeki hatasının artması engellenmiş, en iyi ağırlıklar (12. iterasyondaki) korunmuştur.
+💾 Çıktı: Model 'Model_Exports/model_catboost_region.pkl' yoluna kaydedilmiştir.
+
+---
+
+12
+HAFTA 12 - YAPAY SİNİR AĞLARI (MLP) İLE ÜRÜN TREND TAHMİNİ
+📌 Aktivite Tanımı
+Bir ürünün belirli bir pazarda veya dönemde trend (is_trending: 0/1) olup olmayacağını yüksek doğrulukla tahmin etmek için Çok Katmanlı Algılayıcı (MLP - Multi-Layer Perceptron) Yapay Sinir Ağı modeli geliştirilmiştir.
+
+🛠️ Teknik Detaylar ve Uygulama
+📁 Veri Mühendisliği: Veri setine 'profit_margin' ve 'revenue_per_unit' özellikleri eklenmiştir. Kategorik özellikler LabelEncoder ile dönüştürülmüştür.
+⚙️ Normalizasyon: Yapay Sinir Ağlarının (MLP) duyarlı yapısı nedeniyle, veri sızıntısını (data leakage) engellemek adına veri bölündükten sonra StandardScaler ile eğitim ve test setleri ayrı ayrı ölçeklendirilmiştir.
+🤖 MLP Yapısı: hidden_layer_sizes = (128, 64, 32) üç gizli katman, aktivasyon fonksiyonu 'relu', optimize edici 'adam', max_iter = 500 ve early_stopping = True.
+⚡ Karşılaştırma Yapılan Modeller: Gradient Boosting ve Random Forest.
+
+📊 Değerlendirme Metrikleri ve Sonuçlar
+Karşılaştırma sonuçları (Eğitim ve Test):
+- MLP Neural Network : AUC-Test = 1.0000 | CV-AUC = 1.0000
+- Gradient Boosting  : AUC-Test = 1.0000 | CV-AUC = 1.0000
+- Random Forest      : AUC-Test = 1.0000 | CV-AUC = 1.0000
+- MLP Detaylı Test Seti Raporu:
+  - Sınıf 0 (Trend Olmayan) | Precision: 1.00 | Recall: 1.00 | F1-Score: 1.00
+  - Sınıf 1 (Trend Olan)    | Precision: 1.00 | Recall: 1.00 | F1-Score: 1.00
+  - Genel Akurasi: 100% (1.00)
+- Birinci katman ağırlık analizi (Input Weight Magnitude), trend oluşumunda ürün kuantitesinin ve birim kâr marjının en belirleyici faktörler olduğunu göstermiştir.
+
+⚠️ Sorun: Yapay Sinir Ağının yakınsama hızı ve aşırı öğrenme riski.
+✅ Çözüm: `early_stopping=True` ve L2 regülasyonu sağlayan parametreler aktif edilerek gereksiz eğitim adımları önlenmiştir.
+💾 Çıktı: 'model_trending_nn.pkl', 'scaler_trending.pkl' ve 'encoders_trending_nn.pkl' dosyaları Streamlit dashboard'una entegre edilmek üzere başarılı bir şekilde kaydedilmiştir.
+
+---
+
+13
+HAFTA 13 - YAPAY SİNİR AĞLARI (ANN) İLE SIRA DIŞI RİSK ANALİZİ
+📌 Aktivite Tanımı
+Streamlit dashboard'unda çalışmakta olan akıllı risk motorunun (Risk Engine) daha derin ve doğrusal olmayan ilişkileri öğrenebilmesi amacıyla Keras/TensorFlow tabanlı bir Yapay Sinir Ağı (Artificial Neural Network - ANN) mimarisi tasarlanmış ve eğitilmiştir.
+
+🛠️ Teknik Detaylar ve Uygulama
+📁 Veri Hazırlığı: Risk etiketleri kâr marjının alt %15 dilimine göre oluşturulmuştur. Region ve Category kategorik özellikleri One-Hot Encoding ile 14 girdili bir matrise dönüştürülmüş ve StandardScaler ile normalize edilmiştir.
+🤖 ANN Mimarisi (Sequential):
+  - Giriş Katmanı + 1. Gizli Katman: 32 Düğüm, ReLU aktivasyonu, Dropout (0.2)
+  - 2. Gizli Katman: 16 Düğüm, ReLU aktivasyonu, Dropout (0.2)
+  - Çıkış Katmanı: 1 Düğüm, Sigmoid aktivasyonu (Biner olasılık çıktısı için)
+⚙️ Derleme: Optimizer = 'adam', Loss = 'binary_crossentropy', Metrics = ['accuracy']
+⚖️ Dengeleme: sklearn `compute_class_weight` ile dengesiz risk sınıfları için sınıf ağırlıkları hesaplanarak model eğitimine `class_weight` olarak beslenmiştir.
+⏱️ Erken Durdurma: Val_loss değerini izleyen ve 10 epoch boyunca iyileşme olmazsa eğitimi durduran EarlyStopping callback eklenmiştir.
+
+📊 Değerlendirme Metrikleri ve Sonuçlar
+- Eğitim Logları: Eğitim erken durdurma sayesinde 31. epoch'ta sonlandırılmıştır.
+- Test Seti Performansı:
+  - Model Akurasi: 49.00%
+  - Sınıf 0 (Aman)   | Precision: 0.87 | Recall: 0.48 | F1-Score: 0.62
+  - Sınıf 1 (Riski)  | Precision: 0.16 | Recall: 0.58 | F1-Score: 0.26
+- Analiz: ANN modeli risk altındaki işlemleri yakalamada %58 recall değerine ulaşarak işletmeyi koruma noktasında iyi bir performans sergilemiştir. Düşük genel akurasi, modelin yüksek indirimli normal işlemleri de riskli olarak sınıflandırma (False Positive) eğiliminden kaynaklanmaktadır, bu da e-ticaret risk yönetimi için güvenli tarafta kalmayı sağlar (muhafazakar yaklaşım).
+
+⚠️ Sorun: Sınıf dengesizliği nedeniyle ağın risk sınıfını öğrenememesi ve doğrudan "Aman" sınıfını tahmin etmesi.
+✅ Çözüm: Class weight dengelenerek hata fonksiyonunun riskli işlemler için daha fazla ceza puanı kesmesi sağlanmıştır. Ayrıca aşırı öğrenmeyi engellemek için Dropout katmanları (%20 oranında devre dışı bırakma) yerleştirilmiştir.
+💾 Çıktı: Model 'model_risiko_ann.h5', veri scaler'ı 'scaler_risiko_ann.pkl' ve sütun listesi 'features_ann.pkl' adıyla kaydedilmiştir.
